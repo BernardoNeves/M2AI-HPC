@@ -1,9 +1,24 @@
 #include "utils.h"
-
+#include "jobshop.h"
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+int get_optimal_thread_count() {
+    int max_threads = omp_get_max_threads();
+    // return max_threads;
+    return (max_threads > DISPATCH_RULE_COUNT) ? DISPATCH_RULE_COUNT : max_threads;
+}
+
+int calculate_remaining_work(const jobshop_t* jss, int job_id, int op_idx) {
+    int remaining_work = 0;
+    for (int i = op_idx; i < jss->num_machines; ++i) {
+        remaining_work += jss->times[job_id][i];
+    }
+    return remaining_work;
+}
 
 double get_time_diff(struct timespec start, struct timespec end) {
     return (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec) / 1e9;
@@ -82,17 +97,47 @@ void print_jobshop_instance(const jobshop_t* jss) {
     for (int job = 0; job < jss->num_jobs; job++) {
         printf("Job %d: ", job);
         for (int op = 0; op < jss->num_machines; op++) {
-            printf("M%d(%d) ", jss->machines[job][op], jss->times[job][op]);
+            printf("M(%d,%d) ", jss->machines[job][op], jss->times[job][op]);
         }
         printf("\n");
     }
     printf("\n");
+}
 
-    printf("Original format:\n");
-    printf("%d %d\n", jss->num_jobs, jss->num_machines);
-    for (int job = 0; job < jss->num_jobs; job++) {
-        for (int op = 0; op < jss->num_machines; op++) {
-            printf("%d %2d ", jss->machines[job][op], jss->times[job][op]);
+int write_jobshop_solution_to_file(const char* filename, const jobshop_solution_t* solution) {
+    FILE* file = fopen(filename, "w");
+    if (!file) {
+        fprintf(stderr, "Error: Cannot open file '%s' for writing\n", filename);
+        return -1;
+    }
+
+    fprintf(file, "%d\n", solution->makespan);
+
+    for (int job = 0; job < solution->num_jobs; job++) {
+        for (int op = 0; op < solution->num_machines; op++) {
+            fprintf(file, "%d", solution->schedule[job][op].start_time);
+            if (op < solution->num_machines - 1) {
+                fprintf(file, "  ");
+            }
+        }
+        fprintf(file, "\n");
+    }
+
+    fclose(file);
+    return 0;
+}
+
+void print_jobshop_solution(const jobshop_solution_t* solution) {
+    printf("Job Shop Scheduling Solution\n");
+    printf("==============================\n");
+
+    printf("Schedule (Job, Machine, Start Time, End Time):\n");
+    for (int job = 0; job < solution->num_jobs; job++) {
+        printf("Job %d: ", job);
+        for (int op = 0; op < solution->num_machines; op++) {
+            printf("M(%d,%d) %d  ", solution->schedule[job][op].machine_id,
+                solution->schedule[job][op].end_time - solution->schedule[job][op].start_time,
+                solution->schedule[job][op].start_time);
         }
         printf("\n");
     }

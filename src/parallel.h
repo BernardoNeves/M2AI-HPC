@@ -3,6 +3,6 @@
 
 #include "jobshop.h"
 
-void solve_parallel(const jobshop_t* jss);
+int solve_parallel(const jobshop_t* jss, jobshop_solution_t* solution, int num_threads);
 
 #endif

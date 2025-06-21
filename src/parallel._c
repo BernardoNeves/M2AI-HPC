@@ -1,0 +1,42 @@
+#include "parallel.h"
+#include "utils.h"
+#include <limits.h>
+#include <omp.h>
+
+int solve_parallel(const jobshop_t* jss, jobshop_solution_t* solution) {
+    solution->num_jobs = jss->num_jobs;
+    solution->num_machines = jss->num_machines;
+
+    int machine_completion_time[MAX_MACHINES] = { 0 };
+    int job_completion_time[MAX_JOBS] = { 0 };
+
+    for (int job_id = 0; job_id < jss->num_jobs; job_id++) {
+        for (int op_idx = 0; op_idx < jss->num_machines; op_idx++) {
+            int machine_id = jss->machines[job_id][op_idx];
+            int processing_time = jss->times[job_id][op_idx];
+
+            int start_time = max(machine_completion_time[machine_id],
+                job_completion_time[job_id]);
+
+            int end_time = start_time + processing_time;
+
+            solution->schedule[job_id][op_idx].machine_id = machine_id;
+            solution->schedule[job_id][op_idx].start_time = start_time;
+            solution->schedule[job_id][op_idx].end_time = end_time;
+
+            machine_completion_time[machine_id] = end_time;
+            job_completion_time[job_id] = end_time;
+        }
+    }
+
+    int makespan = 0;
+    for (int job_id = 0; job_id < jss->num_jobs; job_id++) {
+        int job_end_time = solution->schedule[job_id][jss->num_machines - 1].end_time;
+        if (job_end_time > makespan) {
+            makespan = job_end_time;
+        }
+    }
+
+    solution->makespan = makespan;
+    return makespan;
+}

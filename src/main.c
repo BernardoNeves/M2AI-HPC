@@ -20,7 +20,6 @@ static void print_usage(const char* program_name) {
     printf("  -f, --file FILE     Input file containing JSS instance\n");
     printf("  -o, --output [FILE] Output file for results (optional)\n");
     printf("  -t, --threads N     Number of threads to use (default: auto)\n");
-    printf("  -v, --verbose       Enable verbose output\n");
     printf("  -h, --help          Show this help message\n\n");
     printf("Examples:\n");
     printf("  %s --sequential --file ft06.txt\n", program_name);
@@ -39,7 +38,6 @@ int main(int argc, char** argv) {
     jobshop_t jss;
     jobshop_solution_t solution;
     int num_threads = get_optimal_thread_count();
-    bool verbose = false;
 
     static struct option long_options[] = {
         { "sequential", no_argument, 0, 's' },
@@ -47,13 +45,12 @@ int main(int argc, char** argv) {
         { "file", required_argument, 0, 'f' },
         { "output", required_argument, 0, 'o' },
         { "threads", required_argument, 0, 't' },
-        { "verbose", no_argument, 0, 'v' },
         { "help", no_argument, 0, 'h' },
         { 0, 0, 0, 0 }
     };
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "spf:o:h", long_options, NULL)) != -1) {
+    while ((opt = getopt_long(argc, argv, "spf:o:t:h", long_options, NULL)) != -1) {
         switch (opt) {
         case 's':
             if (mode != MODE_NONE) {
@@ -92,9 +89,6 @@ int main(int argc, char** argv) {
         case 'h':
             print_usage(argv[0]);
             return EXIT_SUCCESS;
-        case 'v':
-            verbose = true;
-            break;
         default:
             print_usage(argv[0]);
             return EXIT_FAILURE;
@@ -116,9 +110,6 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    if (verbose) {
-        printf("Input file: %s\n", input_file);
-    }
     if (read_jobshop_from_file(input_file, &jss) < 0) {
         return EXIT_FAILURE;
     }
@@ -134,15 +125,9 @@ int main(int argc, char** argv) {
 
     switch (mode) {
     case MODE_SEQUENTIAL:
-        if (verbose) {
-            printf("Running:\t SEQUENTIAL\n");
-        }
         solve_sequential(&jss, &solution);
         break;
     case MODE_PARALLEL:
-        if (verbose) {
-            printf("Running:\t PARALLEL\n");
-        }
         solve_parallel(&jss, &solution, num_threads);
         break;
     default:
@@ -152,10 +137,8 @@ int main(int argc, char** argv) {
 
     clock_gettime(CLOCK_MONOTONIC, &end_time);
     double elapsed = get_time_diff(start_time, end_time);
-    if (verbose) {
-        printf("Solved in:\t %.6fs\n", elapsed);
-        printf("Makespan:\t %d\n\n", solution.makespan);
-    }
+    printf("Solved in:\t %.6fs\n", elapsed);
+    printf("Makespan:\t %d\n", solution.makespan);
 
     // print_jobshop_solution(&solution);
     if (output_file) {

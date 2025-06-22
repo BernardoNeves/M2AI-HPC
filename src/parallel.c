@@ -110,7 +110,7 @@ int solve_multi_pass_parallel(const jobshop_t* jss, jobshop_solution_t* solution
 
     // Use solution summaries to track results
     solution_summary_t results[DISPATCH_RULE_COUNT];
-    jobshop_solution_t* temp_solutions = malloc(sizeof(jobshop_solution_t) * num_threads);
+    jobshop_solution_t temp_solutions[DISPATCH_RULE_COUNT];
 
     // Try different dispatch rules
     dispatch_rule_t rules[] = {

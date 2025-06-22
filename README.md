@@ -1,5 +1,7 @@
 # HPC - High Performance Computing
 
+[Github repository](https://github.com/BernardoNeves/M2AI-HPC)
+
 > **a23494** Bernardo Neves<br>
 > **a21190** Celestino Machado
 
@@ -34,6 +36,8 @@ Options for running the JSS solver:
 | -s    | --sequential    | Run sequential JSS solver            |
 | -p    | --parallel      | Run parallel JSS solver              |
 | -f    | --file PATH     | Input file containing JSS instance   |
+| -o    | --output [FILE] | Output file for results (optional)   |
+| -t    | --threads N     | Number of threads to use (default: max) |
 | -h    | --help          | Show help message                    |
 
 Run the sequential JSS solver:
@@ -42,6 +46,6 @@ bin/main -s -f <path_to_file>
 ```
 Run the parallel JSS solver:
 ```sh
-bin/main -p -f <path_to_file>
+bin/main -p -f <path_to_file> -o <output_file_name>
 ```
 

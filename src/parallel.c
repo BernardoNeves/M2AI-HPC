@@ -6,7 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int solve_with_dispatch_rule_parallel(const jobshop_t* jss, jobshop_solution_t* solution, dispatch_rule_t rule) {
+// Simple task queue approach
+typedef struct {
+    dispatch_rule_t rule;
+    int completed;
+    int makespan;
+    jobshop_solution_t solution;
+} rule_result_t;
+
+static int solve_with_dispatch_rule_parallel_internal(const jobshop_t* jss, jobshop_solution_t* solution,
+    dispatch_rule_t rule, int num_threads) {
     int machine_completion_time[MAX_MACHINES] = { 0 };
     int job_next_operation[MAX_JOBS] = { 0 };
     int operations_completed = 0;
@@ -16,7 +25,7 @@ static int solve_with_dispatch_rule_parallel(const jobshop_t* jss, jobshop_solut
     solution->num_machines = jss->num_machines;
 
     while (operations_completed < total_operations) {
-        // Find all ready operations using struct-of-arrays
+        // Find all ready operations
         operation_batch_t ready_ops = { .count = 0 };
 
         for (int job_id = 0; job_id < jss->num_jobs; job_id++) {
@@ -53,7 +62,7 @@ static int solve_with_dispatch_rule_parallel(const jobshop_t* jss, jobshop_solut
                     ready_ops.priorities[idx] = rand() % 1000;
                     break;
                 default:
-                    ready_ops.priorities[idx] = job_id; // FIFO as fallback
+                    ready_ops.priorities[idx] = job_id;
                 }
                 ready_ops.count++;
             }
@@ -61,9 +70,32 @@ static int solve_with_dispatch_rule_parallel(const jobshop_t* jss, jobshop_solut
 
         // Find operation with best priority (minimum value)
         int best_idx = 0;
-        for (int i = 1; i < ready_ops.count; i++) {
-            if (ready_ops.priorities[i] < ready_ops.priorities[best_idx]) {
-                best_idx = i;
+
+        // Parallelize the search for best priority if we have enough operations and threads
+        if (num_threads > 1 && ready_ops.count > 50) {
+            int local_best = 0;
+#pragma omp parallel num_threads(num_threads) private(local_best) shared(best_idx)
+            {
+                local_best = 0;
+#pragma omp for
+                for (int i = 1; i < ready_ops.count; i++) {
+                    if (ready_ops.priorities[i] < ready_ops.priorities[local_best]) {
+                        local_best = i;
+                    }
+                }
+
+#pragma omp critical
+                {
+                    if (ready_ops.priorities[local_best] < ready_ops.priorities[best_idx]) {
+                        best_idx = local_best;
+                    }
+                }
+            }
+        } else {
+            for (int i = 1; i < ready_ops.count; i++) {
+                if (ready_ops.priorities[i] < ready_ops.priorities[best_idx]) {
+                    best_idx = i;
+                }
             }
         }
 
@@ -106,13 +138,6 @@ static int solve_with_dispatch_rule_parallel(const jobshop_t* jss, jobshop_solut
 }
 
 int solve_multi_pass_parallel(const jobshop_t* jss, jobshop_solution_t* solution, int num_threads) {
-    omp_set_num_threads(num_threads);
-
-    // Use solution summaries to track results
-    solution_summary_t results[DISPATCH_RULE_COUNT];
-    jobshop_solution_t temp_solutions[DISPATCH_RULE_COUNT];
-
-    // Try different dispatch rules
     dispatch_rule_t rules[] = {
         SHORTEST_PROCESSING_TIME,
         LONGEST_PROCESSING_TIME,
@@ -124,17 +149,44 @@ int solve_multi_pass_parallel(const jobshop_t* jss, jobshop_solution_t* solution
     };
 
     int num_rules = sizeof(rules) / sizeof(rules[0]);
+    rule_result_t results[DISPATCH_RULE_COUNT];
+
+    // Initialize results
+    for (int i = 0; i < num_rules; i++) {
+        results[i].rule = rules[i];
+        results[i].completed = 0;
+        results[i].makespan = INT_MAX;
+    }
+
+    // Calculate threads per rule
+    int threads_per_rule = max(1, num_threads / num_rules);
+    int remaining_threads = num_threads;
+
+    omp_set_num_threads(num_threads);
 
 #pragma omp parallel
     {
         int thread_id = omp_get_thread_num();
         srand(time(NULL) + thread_id);
-#pragma omp for schedule(dynamic)
-        for (int i = 0; i < num_rules; i++) {
-            int makespan = solve_with_dispatch_rule_parallel(jss, &temp_solutions[i], rules[i]);
 
-            results[i].makespan = makespan;
-            results[i].rule_used = rules[i];
+#pragma omp for schedule(dynamic, 1)
+        for (int rule_idx = 0; rule_idx < num_rules; rule_idx++) {
+            // Calculate how many threads this rule should use
+            int threads_for_this_rule = min(threads_per_rule, remaining_threads);
+            if (rule_idx == num_rules - 1) {
+                // Last rule gets any remaining threads
+                threads_for_this_rule = remaining_threads;
+            }
+
+#pragma omp atomic
+            remaining_threads -= threads_for_this_rule;
+
+            // Solve with this rule using allocated threads
+            int makespan = solve_with_dispatch_rule_parallel_internal(
+                jss, &results[rule_idx].solution, rules[rule_idx], threads_for_this_rule);
+
+            results[rule_idx].makespan = makespan;
+            results[rule_idx].completed = 1;
         }
     }
 
@@ -147,7 +199,7 @@ int solve_multi_pass_parallel(const jobshop_t* jss, jobshop_solution_t* solution
     }
 
     // Copy best solution
-    memcpy(solution, &temp_solutions[best_idx], sizeof(jobshop_solution_t));
+    memcpy(solution, &results[best_idx].solution, sizeof(jobshop_solution_t));
     return results[best_idx].makespan;
 }
 

@@ -35,7 +35,7 @@ watch:
 
 run:
 	@printf "\033[1;33m[RUN] Starting the program...\033[0m\n\n"
-	@./run.sh
+	@source .env/bin/activate && python run.py
 	@printf "\033[1;32m[RUN] Program finished.\033[0m\n"
 
 

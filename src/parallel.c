@@ -110,7 +110,7 @@ int solve_multi_pass_parallel(const jobshop_t* jss, jobshop_solution_t* solution
 
     // Use solution summaries to track results
     solution_summary_t results[DISPATCH_RULE_COUNT];
-    jobshop_solution_t temp_solutions[DISPATCH_RULE_COUNT];
+    jobshop_solution_t* temp_solutions = malloc(sizeof(jobshop_solution_t) * num_threads);
 
     // Try different dispatch rules
     dispatch_rule_t rules[] = {
@@ -125,13 +125,17 @@ int solve_multi_pass_parallel(const jobshop_t* jss, jobshop_solution_t* solution
 
     int num_rules = sizeof(rules) / sizeof(rules[0]);
 
-    // #pragma omp parallel for
-#pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < num_rules; i++) {
-        int makespan = solve_with_dispatch_rule_parallel(jss, &temp_solutions[i], rules[i]);
+#pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        srand(time(NULL) + thread_id);
+#pragma omp for schedule(dynamic)
+        for (int i = 0; i < num_rules; i++) {
+            int makespan = solve_with_dispatch_rule_parallel(jss, &temp_solutions[i], rules[i]);
 
-        results[i].makespan = makespan;
-        results[i].rule_used = rules[i];
+            results[i].makespan = makespan;
+            results[i].rule_used = rules[i];
+        }
     }
 
     // Find best result

@@ -1,16 +1,9 @@
 #include "utils.h"
 #include "jobshop.h"
-#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-int get_optimal_thread_count() {
-    int max_threads = omp_get_max_threads();
-    // return max_threads;
-    return (max_threads > DISPATCH_RULE_COUNT) ? DISPATCH_RULE_COUNT : max_threads;
-}
 
 int calculate_remaining_work(const jobshop_t* jss, int job_id, int op_idx) {
     int remaining_work = 0;

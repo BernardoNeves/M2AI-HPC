@@ -1,13 +1,13 @@
 #define _POSIX_C_SOURCE 200809L
-#include <getopt.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "jobshop.h"
 #include "parallel.h"
 #include "sequential.h"
 #include "utils.h"
+#include <getopt.h>
+#include <omp.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define DEFAULT_OUTPUT_DIR "./output"
 
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
     char* output_file = NULL;
     jobshop_t jss;
     jobshop_solution_t solution;
-    int num_threads = get_optimal_thread_count();
+    int num_threads = omp_get_max_threads();
 
     static struct option long_options[] = {
         { "sequential", no_argument, 0, 's' },
